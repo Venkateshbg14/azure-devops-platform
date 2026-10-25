@@ -5,10 +5,11 @@ trigger:
   paths:
     include:
       - app/*
+      - k8s/*
       - pipelines/*
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: ubuntu-24.04
 
 variables:
   azureServiceConnection: sc-azure-oidc
@@ -54,3 +55,26 @@ stages:
                 set -euo pipefail
                 az aks get-credentials --resource-group $(resourceGroup) --name $(aksName) --overwrite-existing
                 kubectl get nodes
+
+  - stage: Deploy
+    displayName: Deploy to AKS
+    dependsOn: VerifyCluster
+    jobs:
+      - job: Deploy
+        steps:
+          - task: AzureCLI@2
+            displayName: Render manifests and deploy
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                TAG="${BUILD_SOURCEVERSION:0:7}"
+                IMAGE="$(acrName).azurecr.io/$(imageName):${TAG}"
+                az aks get-credentials --resource-group $(resourceGroup) --name $(aksName) --overwrite-existing
+                sed -e "s|IMAGE_PLACEHOLDER|${IMAGE}|" -e "s|VERSION_PLACEHOLDER|${TAG}|" k8s/deployment.yaml > /tmp/deployment.yaml
+                kubectl apply -f k8s/namespace.yaml
+                kubectl apply -f /tmp/deployment.yaml -f k8s/service.yaml -f k8s/hpa.yaml
+                kubectl -n demo rollout status deployment/devops-app --timeout=180s
+                kubectl -n demo get pods,svc
