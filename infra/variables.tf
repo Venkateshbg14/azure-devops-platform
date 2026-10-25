@@ -26,3 +26,15 @@ variable "node_count" {
   description = "Number of AKS nodes"
   default     = 2
 }
+
+variable "ado_issuer" {
+  type        = string
+  description = "OIDC issuer URL shown on the Azure DevOps service connection"
+  default     = ""
+}
+
+variable "ado_subject" {
+  type        = string
+  description = "OIDC subject identifier shown on the Azure DevOps service connection"
+  default     = ""
+}

@@ -1,0 +1,56 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - app/*
+      - pipelines/*
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: sc-azure-oidc
+  acrName: acrdevopsplatww279
+  imageName: devops-app
+  resourceGroup: rg-devopsplat-eastus
+  aksName: aks-devopsplat-eastus
+
+stages:
+  - stage: Build
+    displayName: Build and push image
+    jobs:
+      - job: BuildPush
+        steps:
+          - task: AzureCLI@2
+            displayName: Build image and push to ACR
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                TAG="${BUILD_SOURCEVERSION:0:7}"
+                IMAGE="$(acrName).azurecr.io/$(imageName):${TAG}"
+                az acr login --name $(acrName)
+                docker build -t "${IMAGE}" app
+                docker push "${IMAGE}"
+                echo "Pushed ${IMAGE}"
+
+  - stage: VerifyCluster
+    displayName: Verify AKS access
+    dependsOn: Build
+    jobs:
+      - job: Verify
+        steps:
+          - task: AzureCLI@2
+            displayName: Get kubeconfig and list nodes
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                az aks get-credentials --resource-group $(resourceGroup) --name $(aksName) --overwrite-existing
+                kubectl get nodes
