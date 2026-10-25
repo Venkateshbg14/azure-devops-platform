@@ -38,7 +38,7 @@ spec:
             - containerPort: 8080
           env:
             - name: APP_VERSION
-              value: VERSION_PLACEHOLDER
+              value: "VERSION_PLACEHOLDER"
           resources:
             requests:
               cpu: 50m
